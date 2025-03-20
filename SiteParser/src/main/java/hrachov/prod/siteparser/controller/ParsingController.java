@@ -2,11 +2,10 @@ package hrachov.prod.siteparser.controller;
 
 import hrachov.prod.siteparser.model.Product;
 import hrachov.prod.siteparser.repository.ProductRepository;
-import hrachov.prod.siteparser.service.ExcelService;
-import hrachov.prod.siteparser.service.ParsingService;
-import hrachov.prod.siteparser.service.ProductService;
+import hrachov.prod.siteparser.service.*;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,15 +19,16 @@ import java.util.List;
 @Controller
 public class ParsingController {
     @Autowired
-    private ParsingService parsingService;
+    private ParsingService parsingServiceImpl;
 
     @Autowired
     private ProductRepository productRepository;
 
     @Autowired
     private ExcelService excelService;
+
     @Autowired
-    private ProductService productService;
+    private ProductService productServiceImpl;
 
     // Главная страница с формой
     @GetMapping("/")
@@ -39,18 +39,31 @@ public class ParsingController {
     // Обработчик запроса на парсинг
     @PostMapping("/parse")
     public String parseProducts(@RequestParam String productName, Model model) {
-        productService.deleteAllProducts();
-        List<Product> products = parsingService.getProductsFromHtml(productName);
+        productServiceImpl.deleteAllProducts();
+        List<Product> products = parsingServiceImpl.getProductsFromHtml(productName);
         productRepository.saveAll(products);
-        model.addAttribute("products", products);
-        return "products";
+        return "redirect:/products";
     }
-    @GetMapping("/products")
-    public String showProducts(@RequestParam(name = "sort", required = false) String sort, Model model) {
-        List<Product> products = productRepository.findAll();
 
-        model.addAttribute("products", products);
-        return "products";  // передаем список продуктов в шаблон
+    @GetMapping("/products")
+    public String showProducts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "title") String sort,
+            @RequestParam(defaultValue = "asc") String dir,
+            Model model) {
+
+        Page<Product> productPage = productServiceImpl.getProducts(page, size, sort, dir);
+
+        model.addAttribute("products", productPage.getContent());
+        model.addAttribute("currentPage", page);
+        model.addAttribute("totalPages", productPage.getTotalPages());
+        model.addAttribute("totalItems", productPage.getTotalElements());
+        model.addAttribute("sortField", sort);
+        model.addAttribute("sortDir", dir);
+        model.addAttribute("reverseSortDir", dir.equals("asc") ? "desc" : "asc");
+
+        return "products";
     }
 
     // Скачать Excel-файл
